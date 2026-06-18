@@ -1,78 +1,108 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+import { useState } from 'react'
+import Head from 'next/head'
+import toast, { Toaster } from 'react-hot-toast'
+import { Input } from '@/components/ui/input'
+import { AvatarUpload } from '@/components/AvatarUpload'
+import { ChallengeCard } from '@/components/ChallengeCard'
+import { MoneyButtons } from '@/components/MoneyButtons'
+import { useChallenges } from '@/hooks/useChallenges'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+export default function PlayerPage() {
+  const [name, setName] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const { currentChallenge, completed, loading, pickNewChallenge, markCompleted } = useChallenges()
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+  async function handleMoneySubmit(amount: number) {
+    if (!name.trim()) {
+      toast.error('Enter your name first!')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          moneyChange: amount,
+          avatar_url: avatarUrl,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
 
-export default function Home() {
+      markCompleted()
+      const sign = amount > 0 ? '+' : ''
+      toast.success(`${sign}$${amount} added! Total: $${data.money}`, {
+        icon: amount > 0 ? '🤑' : '💸',
+        duration: 3000,
+        style: {
+          background: '#1e1b4b',
+          color: '#fbbf24',
+          border: '1px solid #fbbf24',
+          fontWeight: 'bold',
+        },
+      })
+    } catch (err: any) {
+      toast.error(err.message ?? 'Something went wrong')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
-    <div
-      className={`${geistSans.className} ${geistMono.className} flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black`}
-    >
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the index.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <>
+      <Head>
+        <title>Casino Challenge 🎰</title>
+      </Head>
+      <Toaster position="top-center" />
+      <div className="min-h-screen bg-linear-to-b from-black via-purple-950 to-black px-4 py-8">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Header */}
+          <div className="text-center">
+            <h1 className="text-4xl font-black text-yellow-400 drop-shadow-lg">🎰 Casino Night</h1>
+            <p className="text-purple-300 mt-1 text-sm">Complete challenges, earn money!</p>
+          </div>
+
+          {/* Avatar + Name */}
+          <div className="bg-black/40 border border-purple-700/50 rounded-2xl p-6 space-y-4">
+            <AvatarUpload onUpload={setAvatarUrl} currentUrl={avatarUrl} />
+            <Input
+              placeholder="Your name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="text-center text-lg font-bold bg-purple-900/50 border-purple-600 text-white placeholder:text-purple-400 h-12"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs/pages/getting-started?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+
+          {/* Challenge */}
+          <ChallengeCard
+            text={currentChallenge?.text ?? null}
+            completed={completed}
+            loading={loading}
+            onGetNew={pickNewChallenge}
+          />
+
+          {/* Money buttons */}
+          <div className="bg-black/40 border border-purple-700/50 rounded-2xl p-6">
+            <p className="text-purple-300 text-sm mb-4 text-center">
+              How did you do on this challenge?
+            </p>
+            <MoneyButtons onSubmit={handleMoneySubmit} disabled={submitting} />
+          </div>
+
+          {/* Leaderboard link */}
+          <div className="text-center">
+            <a
+              href="/leaderboard"
+              className="text-yellow-400 underline underline-offset-4 text-sm hover:text-yellow-300"
+            >
+              📊 View Leaderboard →
+            </a>
+          </div>
         </div>
-      </main>
-    </div>
-  );
+      </div>
+    </>
+  )
 }
