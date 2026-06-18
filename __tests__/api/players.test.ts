@@ -1,6 +1,5 @@
 import { createMocks } from 'node-mocks-http'
 
-// Mock supabase-admin before importing the route
 jest.mock('@/lib/supabase-admin', () => ({
   supabaseAdmin: {
     from: jest.fn(() => ({
@@ -12,18 +11,11 @@ jest.mock('@/lib/supabase-admin', () => ({
           ],
           error: null,
         })),
-        eq: jest.fn(() => ({
-          single: jest.fn(() => Promise.resolve({ data: { money: 300 }, error: null })),
-        })),
       })),
-      upsert: jest.fn(() => ({
-        select: jest.fn(() => ({
-          single: jest.fn(() => Promise.resolve({
-            data: { id: '1', name: 'Alice', money: 350, avatar_url: null, created_at: '', updated_at: '' },
-            error: null,
-          })),
-        })),
-      })),
+    })),
+    rpc: jest.fn(() => Promise.resolve({
+      data: [{ id: '1', name: 'Alice', money: 350, avatar_url: null, created_at: '', updated_at: '' }],
+      error: null,
     })),
   },
 }))
@@ -57,6 +49,15 @@ describe('POST /api/players', () => {
     const { req, res } = createMocks({
       method: 'POST',
       body: { moneyChange: 50 },
+    })
+    await handler(req as any, res as any)
+    expect(res._getStatusCode()).toBe(400)
+  })
+
+  it('returns 400 when moneyChange is a string', async () => {
+    const { req, res } = createMocks({
+      method: 'POST',
+      body: { name: 'Alice', moneyChange: 'fifty' },
     })
     await handler(req as any, res as any)
     expect(res._getStatusCode()).toBe(400)

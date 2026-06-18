@@ -14,39 +14,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'POST') {
-    const { name, moneyChange, avatar_url } = req.body
+    const { name, avatar_url } = req.body
 
-    if (!name || typeof name !== 'string') {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'name is required' })
     }
-    if (typeof moneyChange !== 'number') {
-      return res.status(400).json({ error: 'moneyChange must be a number' })
+
+    const moneyChange = Number(req.body.moneyChange)
+    if (!Number.isFinite(moneyChange)) {
+      return res.status(400).json({ error: 'moneyChange must be a finite number' })
     }
 
-    // Fetch existing player to calculate new balance
-    const { data: existing } = await supabaseAdmin
-      .from('players')
-      .select('money')
-      .eq('name', name.trim())
-      .single()
-
-    const currentMoney = existing?.money ?? 0
-    const newMoney = currentMoney + moneyChange
-
-    const upsertPayload: Partial<Player> & { name: string; money: number } = {
-      name: name.trim(),
-      money: newMoney,
-    }
-    if (avatar_url) upsertPayload.avatar_url = avatar_url
-
-    const { data, error } = await supabaseAdmin
-      .from('players')
-      .upsert(upsertPayload, { onConflict: 'name' })
-      .select()
-      .single()
+    // Atomic upsert via Postgres RPC — avoids race condition
+    const { data, error } = await supabaseAdmin.rpc('upsert_player_money', {
+      p_name: name.trim(),
+      p_money_delta: moneyChange,
+      p_avatar_url: avatar_url ?? null,
+    })
 
     if (error) return res.status(500).json({ error: error.message })
-    return res.status(200).json(data as Player)
+    // rpc returns array; take first row
+    const player = Array.isArray(data) ? data[0] : data
+    return res.status(200).json(player as Player)
   }
 
   res.setHeader('Allow', ['GET', 'POST'])
