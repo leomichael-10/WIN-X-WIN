@@ -19,6 +19,10 @@ export function useChallenges() {
       .then(r => r.json())
       .then((data: Challenge[]) => {
         setChallenges(data)
+        if (data.length === 0) {
+          setLoading(false)
+          return
+        }
 
         // Restore from localStorage
         const stored = localStorage.getItem(STORAGE_KEY)

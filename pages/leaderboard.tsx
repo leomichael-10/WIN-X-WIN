@@ -12,7 +12,7 @@ interface LeaderboardProps {
 
 export default function LeaderboardPage({ initialPlayers }: LeaderboardProps) {
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
-  const prevSignatureRef = useRef<string>(JSON.stringify(initialPlayers.map(p => p.money)))
+  const prevSignatureRef = useRef<string>(JSON.stringify(initialPlayers.map(p => `${p.id}:${p.money}:${p.name}`)))
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -22,7 +22,7 @@ export default function LeaderboardPage({ initialPlayers }: LeaderboardProps) {
         const data: Player[] = await res.json()
 
         // Only update state if data changed (avoids re-render flicker)
-        const newSignature = JSON.stringify(data.map(p => p.money))
+        const newSignature = JSON.stringify(data.map(p => `${p.id}:${p.money}:${p.name}`))
         if (newSignature !== prevSignatureRef.current) {
           prevSignatureRef.current = newSignature
           setPlayers(data)

@@ -33,8 +33,8 @@ export default function PlayerPage() {
       if (!res.ok) throw new Error(data.error)
 
       markCompleted()
-      const sign = amount > 0 ? '+' : ''
-      toast.success(`${sign}$${amount} added! Total: $${data.money}`, {
+      const formatted = amount >= 0 ? `+$${amount}` : `-$${Math.abs(amount)}`
+      toast.success(`${formatted} added! Total: $${data.money}`, {
         icon: amount > 0 ? '🤑' : '💸',
         duration: 3000,
         style: {
@@ -44,8 +44,8 @@ export default function PlayerPage() {
           fontWeight: 'bold',
         },
       })
-    } catch (err: any) {
-      toast.error(err.message ?? 'Something went wrong')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setSubmitting(false)
     }
@@ -72,6 +72,7 @@ export default function PlayerPage() {
               placeholder="Your name"
               value={name}
               onChange={e => setName(e.target.value)}
+              maxLength={32}
               className="text-center text-lg font-bold bg-purple-900/50 border-purple-600 text-white placeholder:text-purple-400 h-12"
             />
           </div>

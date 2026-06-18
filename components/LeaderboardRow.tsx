@@ -31,7 +31,7 @@ export function LeaderboardRow({ player, rank }: LeaderboardRowProps) {
           <Image src={player.avatar_url} alt={player.name} fill className="object-cover" unoptimized />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xl font-bold text-yellow-400">
-            {player.name.charAt(0).toUpperCase()}
+            {(player.name?.charAt(0) ?? '?').toUpperCase()}
           </div>
         )}
       </div>
@@ -45,7 +45,7 @@ export function LeaderboardRow({ player, rank }: LeaderboardRowProps) {
       <div
         className={`font-black tabular-nums ${
           isTop3 ? 'text-3xl text-yellow-400' : 'text-2xl text-green-400'
-        } ${player.money < 0 ? '!text-red-400' : ''}`}
+        } ${player.money < 0 ? 'text-red-400!' : ''}`}
       >
         {player.money < 0 ? '-' : '+'}${Math.abs(player.money)}
       </div>
