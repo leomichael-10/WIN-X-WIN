@@ -1,0 +1,12 @@
+[
+  { "id": 1, "text": "Win 3 hands of Blackjack in a row" },
+  { "id": 2, "text": "Hit a single number on Roulette" },
+  { "id": 3, "text": "Double down and win at Blackjack" },
+  { "id": 4, "text": "Win a hand of Poker with a pair or better" },
+  { "id": 5, "text": "Correctly call red or black 3 times in a row" },
+  { "id": 6, "text": "Win $200 in a single Craps round" },
+  { "id": 7, "text": "Get a Blackjack (Ace + 10-value card)" },
+  { "id": 8, "text": "Win at Baccarat on the Banker bet" },
+  { "id": 9, "text": "Spin the wheel and land on green (0 or 00)" },
+  { "id": 10, "text": "Win 5 consecutive hands at any table game" }
+]
