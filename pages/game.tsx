@@ -7,6 +7,13 @@ import { MoneyButtons } from '@/components/MoneyButtons'
 import { useChallenges } from '@/hooks/useChallenges'
 import type { Player } from '@/lib/types'
 
+/** Remove every casino_* key from localStorage and send the user back to registration. */
+function clearPlayerCache() {
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('casino_'))
+    .forEach(k => localStorage.removeItem(k))
+}
+
 export default function GamePage() {
   const router = useRouter()
   const [player, setPlayer] = useState<Player | null>(null)
@@ -26,10 +33,20 @@ export default function GamePage() {
       const p: Player = JSON.parse(stored)
       setPlayer(p)
       setMoney(p.money) // fast paint from cache while DB read is in flight
-      // Overwrite with the authoritative ledger total — DB always wins
+      // Validate the cached id against the DB and overwrite with authoritative total.
+      // A 404 means the player was deleted (pre-event cleanup) — clear the stale
+      // cache so the user is prompted to re-register instead of hitting apply_reward
+      // with a dead UUID.
       fetch(`/api/players?player_id=${encodeURIComponent(p.id)}`)
-        .then(r => r.json())
-        .then(({ money }: { money: number }) => { if (typeof money === 'number') setMoney(money) })
+        .then(async r => {
+          if (r.status === 404) {
+            clearPlayerCache()
+            router.replace('/?stale=1')
+            return
+          }
+          const { money } = await r.json()
+          if (typeof money === 'number') setMoney(money)
+        })
         .catch(() => {/* keep localStorage value on network failure */})
     } catch { router.replace('/') }
   }, [router])
@@ -81,6 +98,13 @@ export default function GamePage() {
         }),
       })
       const data = await res.json()
+      if (res.status === 404 && data.error === 'PLAYER_NOT_FOUND') {
+        // Stale cached id — clear everything and send back to registration
+        clearPlayerCache()
+        toast.error('Session expired — please register again.', { duration: 4000 })
+        router.replace('/')
+        return
+      }
       if (!res.ok) throw new Error(data.error)
       markCompleted()
       // data.money is the authoritative total returned by apply_reward — never client-computed

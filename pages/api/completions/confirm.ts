@@ -30,16 +30,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(409).json({ error: 'Completion already resolved' })
   }
 
-  // Resolve player UUID from name (completions table stores name, not id)
-  const { data: playerRow, error: playerErr } = await supabaseAdmin
+  // Resolve player UUID from name (completions table stores name, not id).
+  // Use maybeSingle so we can distinguish zero matches from multiple matches.
+  const { data: playerRows, error: playerErr } = await supabaseAdmin
     .from('players')
     .select('id')
     .ilike('name', completion.player_name)
-    .single()
 
-  if (playerErr || !playerRow) {
-    return res.status(404).json({ error: `Player not found: ${completion.player_name}` })
+  if (playerErr) {
+    return res.status(500).json({ error: `Player lookup failed: ${playerErr.message}` })
   }
+  if (!playerRows || playerRows.length === 0) {
+    return res.status(404).json({
+      error: `Player not found — no player named "${completion.player_name}". They may need to re-register.`,
+    })
+  }
+  if (playerRows.length > 1) {
+    return res.status(409).json({
+      error: `Ambiguous player name "${completion.player_name}" matched ${playerRows.length} players. Resolve the duplicate in the DB first.`,
+    })
+  }
+  const playerRow = playerRows[0]
 
   // Append-only ledger write via apply_reward.
   // Idempotency key ties the reward to this exact completion UUID — a dealer
@@ -52,7 +63,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     p_idempotency_key: idempotencyKey,
   })
 
-  if (rpcErr) return res.status(500).json({ error: rpcErr.message })
+  if (rpcErr) {
+    if (rpcErr.message?.includes('PLAYER_NOT_FOUND')) {
+      // Player was deleted between the name lookup and the RPC call (race condition).
+      // Surface a clear, non-fatal dealer message so the queue keeps working.
+      return res.status(404).json({
+        error: `Player "${completion.player_name}" no longer exists in the DB — they may need to re-register.`,
+      })
+    }
+    return res.status(500).json({ error: rpcErr.message })
+  }
 
   // Mark confirmed
   const { error: updateErr } = await supabaseAdmin

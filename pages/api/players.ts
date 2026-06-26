@@ -10,6 +10,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Used by game.tsx on mount and after dealer confirm — avoids fetching
     // all 85 players just to read one balance.
     if (player_id && typeof player_id === 'string') {
+      // Validate the id exists before calling get_total.
+      // get_total returns 0/null for a deleted player (no transactions) so we
+      // can't rely on it to detect a missing player — we need an explicit row check.
+      const { data: row, error: existsErr } = await supabaseAdmin
+        .from('players')
+        .select('id')
+        .eq('id', player_id)
+        .maybeSingle()
+
+      if (existsErr) return res.status(500).json({ error: existsErr.message })
+      if (!row) return res.status(404).json({ error: 'PLAYER_NOT_FOUND' })
+
       const { data: total, error } = await supabaseAdmin.rpc('get_total', {
         p_player_id: player_id,
       })
@@ -52,7 +64,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       p_idempotency_key: idempotency_key,
     })
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) {
+      // apply_reward raises PLAYER_NOT_FOUND (P0002) for a missing player id.
+      // Return 404 so the client can self-heal (clear cache + re-register)
+      // rather than showing a generic 500 with no recovery path.
+      if (error.message?.includes('PLAYER_NOT_FOUND')) {
+        return res.status(404).json({ error: 'PLAYER_NOT_FOUND' })
+      }
+      return res.status(500).json({ error: error.message })
+    }
     return res.status(200).json({ money: newTotal as number })
   }
 
