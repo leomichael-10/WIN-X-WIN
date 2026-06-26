@@ -83,9 +83,10 @@ export default function GamePage() {
       // A double-tap of the same button for the same challenge reuses the key →
       // apply_reward inserts only ONE transaction row.
       const challengeId = currentChallenge?.id ?? 'manual'
-      // Key = player + challenge only (no amount). One ledger row per player
-      // per challenge regardless of reward size; amount is in the row itself.
-      const idempotencyKey = `${player.id}-${challengeId}`
+      // Every tap must insert a new ledger row — players can earn unlimited times.
+      // crypto.randomUUID() is unique per tap so ON CONFLICT DO NOTHING never fires.
+      // The reason field still carries challengeId for auditability.
+      const idempotencyKey = crypto.randomUUID()
 
       const res = await fetch('/api/players', {
         method: 'POST',
