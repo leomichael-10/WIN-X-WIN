@@ -7,20 +7,21 @@ interface MoneyButtonsProps {
 }
 
 const PRESETS = [
-  { label: '+$50',  value:   50, positive: true },
   { label: '+$100', value:  100, positive: true },
-  { label: '-$50',  value:  -50, positive: false },
+  { label: '+$200', value:  200, positive: true },
   { label: '-$100', value: -100, positive: false },
+  { label: '-$200', value: -200, positive: false },
 ]
 
 export function MoneyButtons({ onSubmit, disabled }: MoneyButtonsProps) {
   const [custom, setCustom] = useState('')
-  const [animating, setAnimating] = useState<number | null>(null)
+  const [activeValue, setActiveValue] = useState<number | null>(null)
 
-  function handlePreset(value: number) {
-    setAnimating(value)
-    setTimeout(() => setAnimating(null), 300)
-    onSubmit(value)
+  async function handlePreset(value: number) {
+    if (disabled) return
+    setActiveValue(value)
+    await onSubmit(value)
+    setTimeout(() => setActiveValue(null), 600)
   }
 
   function handleCustom() {
@@ -34,57 +35,62 @@ export function MoneyButtons({ onSubmit, disabled }: MoneyButtonsProps) {
     <div className="space-y-3">
       {/* Preset grid */}
       <div className="grid grid-cols-2 gap-3">
-        {PRESETS.map(({ label, value, positive }) => (
-          <button
-            key={value}
-            onClick={() => handlePreset(value)}
-            disabled={disabled}
-            className="py-4 rounded-xl font-black text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-            style={{
-              background: positive
-                ? animating === value
-                  ? 'linear-gradient(135deg,#22c55e,#16a34a)'
-                  : 'linear-gradient(135deg,#16a34a,#15803d)'
-                : animating === value
-                  ? 'linear-gradient(135deg,#ef4444,#dc2626)'
-                  : 'linear-gradient(135deg,#dc2626,#b91c1c)',
-              color: '#fff',
-              boxShadow: animating === value
-                ? `0 0 20px ${positive ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'}`
-                : 'none',
-              transform: animating === value ? 'scale(0.95)' : 'scale(1)',
-            }}
-          >
-            {label}
-          </button>
-        ))}
+        {PRESETS.map(({ label, value, positive }) => {
+          const isActive = activeValue === value
+          return (
+            <button
+              key={value}
+              onClick={() => handlePreset(value)}
+              disabled={disabled}
+              className="py-5 rounded-xl font-black text-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed select-none"
+              style={{
+                background: positive
+                  ? isActive
+                    ? 'linear-gradient(135deg,#4ade80,#16a34a)'
+                    : 'linear-gradient(135deg,#16a34a,#15803d)'
+                  : isActive
+                    ? 'linear-gradient(135deg,#f87171,#dc2626)'
+                    : 'linear-gradient(135deg,#dc2626,#b91c1c)',
+                color: '#fff',
+                boxShadow: isActive
+                  ? `0 0 28px ${positive ? 'rgba(74,222,128,0.55)' : 'rgba(248,113,113,0.55)'}`
+                  : `0 2px 8px ${positive ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)'}`,
+                transform: isActive ? 'scale(0.95)' : 'scale(1)',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {isActive ? (positive ? '✓' : '✓') : label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Custom amount */}
       <div className="flex gap-2">
         <Input
           type="number"
-          placeholder="Custom (e.g. 75 or -75)"
+          placeholder="Custom amount…"
           value={custom}
           onChange={e => setCustom(e.target.value)}
           disabled={disabled}
           onKeyDown={e => e.key === 'Enter' && handleCustom()}
-          className="text-white placeholder:text-white/30 h-11"
+          className="text-white placeholder:text-white/25 h-12 text-base"
           style={{
             background: 'rgba(255,255,255,0.04)',
-            border: '1.5px solid rgba(212,175,55,0.25)',
+            border: '1.5px solid rgba(212,175,55,0.2)',
           }}
         />
         <button
           onClick={handleCustom}
           disabled={disabled || !custom}
-          className="px-4 h-11 rounded-xl font-black text-sm text-black whitespace-nowrap transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="h-12 px-5 rounded-xl font-black text-sm text-black whitespace-nowrap transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
           style={{
             background: 'linear-gradient(135deg,#ffe066,#d4af37,#a07820)',
-            minWidth: 96,
+            minWidth: 90,
+            boxShadow: !disabled && custom ? '0 0 16px rgba(212,175,55,0.35)' : 'none',
           }}
         >
-          Add Money
+          Add
         </button>
       </div>
     </div>

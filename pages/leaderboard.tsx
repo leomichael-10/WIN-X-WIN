@@ -27,7 +27,7 @@ export default function LeaderboardPage({ initialPlayers }: LeaderboardProps) {
           setPlayers(data)
         }
       } catch { /* keep last known data */ }
-    }, 1500)
+    }, 3000)  // 3 s — reduced from 1.5 s to cut server load under 85-player event
     return () => clearInterval(interval)
   }, [])
 

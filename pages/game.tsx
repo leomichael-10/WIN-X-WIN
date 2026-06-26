@@ -11,9 +11,14 @@ import type { Player } from '@/lib/types'
 export default function GamePage() {
   const router = useRouter()
   const [player, setPlayer] = useState<Player | null>(null)
-  const [money, setMoney] = useState<number>(1500)
+  const [money, setMoney]   = useState<number>(1500)
   const [submitting, setSubmitting] = useState(false)
-  const { currentChallenge, completed, loading, skipsLeft, pickNewChallenge, markCompleted } = useChallenges()
+
+  const {
+    currentChallenge, loading, skipsLeft, resetCountdown,
+    dealerStatus, confirmedReward,
+    submitToDealer, skipChallenge, markCompleted,
+  } = useChallenges()
 
   useEffect(() => {
     const stored = localStorage.getItem('casino_player')
@@ -24,6 +29,13 @@ export default function GamePage() {
       setMoney(p.money)
     } catch { router.replace('/') }
   }, [router])
+
+  // When dealer confirms, update displayed balance
+  useEffect(() => {
+    if (dealerStatus === 'confirmed' && confirmedReward > 0) {
+      setMoney(prev => prev + confirmedReward)
+    }
+  }, [dealerStatus, confirmedReward])
 
   async function handleMoneySubmit(amount: number) {
     if (!player) return
@@ -36,19 +48,13 @@ export default function GamePage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-
       markCompleted()
       setMoney(data.money)
       const formatted = amount >= 0 ? `+$${amount}` : `-$${Math.abs(amount)}`
       toast.success(`${formatted} · Total $${data.money}`, {
         icon: amount > 0 ? '🤑' : '💸',
         duration: 3000,
-        style: {
-          background: '#111',
-          color: '#d4af37',
-          border: '1px solid #d4af3760',
-          fontWeight: 'bold',
-        },
+        style: { background: '#111', color: '#d4af37', border: '1px solid #d4af3760', fontWeight: 'bold' },
       })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong')
@@ -69,12 +75,9 @@ export default function GamePage() {
 
           {/* ── Header ── */}
           <div className="flex items-center justify-between">
-            {/* Player identity */}
             <div className="flex items-center gap-3">
-              <div
-                className="relative rounded-full overflow-hidden shrink-0"
-                style={{ width: 48, height: 48, border: '2px solid #d4af37', background: '#111' }}
-              >
+              <div className="relative rounded-full overflow-hidden shrink-0"
+                style={{ width: 48, height: 48, border: '2px solid #d4af37', background: '#111' }}>
                 {player.avatar_url ? (
                   <Image src={player.avatar_url} alt={player.name} fill className="object-cover" unoptimized />
                 ) : (
@@ -84,28 +87,24 @@ export default function GamePage() {
                 )}
               </div>
               <div>
-                <p className="text-xs uppercase tracking-widest" style={{ color: 'rgba(212,175,55,0.5)' }}>Playing as</p>
+                <p className="text-xs uppercase tracking-widest leading-tight" style={{ color: 'rgba(212,175,55,0.45)' }}>Playing as</p>
                 <p className="font-black text-white text-base leading-tight">{player.name}</p>
-                <p
-                  className="font-black tabular-nums text-sm leading-tight"
-                  style={{ color: money < 0 ? '#e55' : '#d4af37' }}
-                >
-                  ${money.toLocaleString()}
-                </p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs uppercase tracking-widest" style={{ color: 'rgba(212,175,55,0.45)' }}>🏦 WWB</span>
+                  <span className="font-black tabular-nums text-base leading-tight"
+                    style={{ color: money < 0 ? '#f87171' : '#d4af37', textShadow: money >= 0 ? '0 0 10px rgba(212,175,55,0.4)' : 'none' }}>
+                    ${money.toLocaleString()}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Casino wordmark */}
-            <h1
-              className="font-black uppercase tracking-widest text-2xl"
+            <h1 className="font-black uppercase tracking-widest text-2xl"
               style={{
                 background: 'linear-gradient(180deg,#ffe066 0%,#d4af37 60%,#a07820 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
                 filter: 'drop-shadow(0 0 8px rgba(212,175,55,0.4))',
-              }}
-            >
+              }}>
               WIN X WIN
             </h1>
           </div>
@@ -113,43 +112,34 @@ export default function GamePage() {
           {/* ── Gold divider ── */}
           <div className="h-px w-full" style={{ background: 'linear-gradient(90deg,transparent,#d4af37,transparent)' }} />
 
-          {/* ── Challenge ── */}
+          {/* ── Challenge (dealer-gated) ── */}
           <ChallengeCard
             text={currentChallenge?.text ?? null}
-            completed={completed}
             loading={loading}
             skipsLeft={skipsLeft}
-            onGetNew={pickNewChallenge}
+            resetCountdown={resetCountdown}
+            dealerStatus={dealerStatus}
+            confirmedReward={confirmedReward}
+            onSubmitToDealer={() => submitToDealer(player.name, player.avatar_url)}
+            onSkip={skipChallenge}
           />
 
-          {/* ── Money section ── */}
-          <div
-            className="rounded-2xl p-5 space-y-3"
-            style={{ background: 'rgba(212,175,55,0.04)', border: '1.5px solid rgba(212,175,55,0.15)' }}
-          >
-            <p className="text-center text-xs font-bold uppercase tracking-[0.25em]" style={{ color: 'rgba(212,175,55,0.6)' }}>
-              How did you do?
-            </p>
+          {/* ── WWB Bank ── */}
+          <div className="rounded-2xl p-5 space-y-3"
+            style={{ background: 'rgba(212,175,55,0.04)', border: '1.5px solid rgba(212,175,55,0.3)' }}>
+            <div className="flex items-center gap-2 justify-center">
+              <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg,transparent,rgba(212,175,55,0.4))' }} />
+              <p className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: '#d4af37' }}>🏦 WWB Bank</p>
+              <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg,rgba(212,175,55,0.4),transparent)' }} />
+            </div>
             <MoneyButtons onSubmit={handleMoneySubmit} disabled={submitting} />
           </div>
 
-          {/* ── Footer links ── */}
-          <div className="flex items-center justify-center gap-6 pt-1">
-            <a
-              href="/leaderboard"
-              className="text-xs font-bold uppercase tracking-widest transition-colors"
-              style={{ color: '#d4af37' }}
-            >
+          {/* ── Footer ── */}
+          <div className="flex items-center justify-center pt-1">
+            <a href="/leaderboard" className="text-xs font-bold uppercase tracking-widest" style={{ color: '#d4af37' }}>
               📊 Leaderboard
             </a>
-            <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-            <button
-              onClick={() => { localStorage.removeItem('casino_player'); router.push('/') }}
-              className="text-xs uppercase tracking-widest transition-colors"
-              style={{ color: 'rgba(255,255,255,0.25)' }}
-            >
-              Switch player
-            </button>
           </div>
 
         </div>

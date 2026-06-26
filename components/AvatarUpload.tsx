@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 
 interface AvatarUploadProps {
   onUpload: (url: string) => void
@@ -53,7 +52,12 @@ export function AvatarUpload({ onUpload, currentUrl }: AvatarUploadProps) {
         className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-yellow-400 bg-purple-900 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
       >
         {preview ? (
-          <Image src={preview} alt="Avatar" fill className="object-cover" unoptimized />
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={preview}
+            alt="Avatar"
+            className="w-full h-full object-cover"
+          />
         ) : (
           <span className="text-4xl">🎰</span>
         )}
