@@ -10,7 +10,7 @@ import type { Player } from '@/lib/types'
 export default function GamePage() {
   const router = useRouter()
   const [player, setPlayer] = useState<Player | null>(null)
-  const [money, setMoney]   = useState<number>(1500)
+  const [money, setMoney]   = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const {
@@ -25,30 +25,70 @@ export default function GamePage() {
     try {
       const p: Player = JSON.parse(stored)
       setPlayer(p)
-      setMoney(p.money)
+      setMoney(p.money) // temporary display while we fetch fresh value
+      // Hydrate money from Supabase — localStorage may be stale after mutations
+      fetch('/api/players')
+        .then(r => r.json())
+        .then((players: Player[]) => {
+          const fresh = players.find(pl => pl.id === p.id)
+          if (fresh) setMoney(fresh.money)
+        })
+        .catch(() => {/* keep localStorage value on network failure */})
     } catch { router.replace('/') }
   }, [router])
 
-  // When dealer confirms, update displayed balance
+  // When dealer confirms, re-fetch from DB to get the authoritative post-confirmation total
   useEffect(() => {
     if (dealerStatus === 'confirmed' && confirmedReward > 0) {
-      setMoney(prev => prev + confirmedReward)
+      fetch('/api/players')
+        .then(r => r.json())
+        .then((players: Player[]) => {
+          const fresh = players.find(pl => pl.id === player?.id)
+          if (fresh) {
+            setMoney(fresh.money)
+            localStorage.setItem('casino_player', JSON.stringify({ ...player, money: fresh.money }))
+          }
+        })
+        .catch(() => {
+          // Supabase re-fetch failed; apply delta locally and keep localStorage in sync
+          // so the next refresh isn't stale. The DB already has the correct value (confirm.ts
+          // wrote it before we got here) — it will reconcile on the next successful fetch.
+          setMoney(prev => {
+            const optimistic = (prev ?? 0) + confirmedReward
+            localStorage.setItem('casino_player', JSON.stringify({ ...player, money: optimistic }))
+            return optimistic
+          })
+        })
     }
-  }, [dealerStatus, confirmedReward])
+  }, [dealerStatus, confirmedReward, player])
 
   async function handleMoneySubmit(amount: number) {
     if (!player) return
     setSubmitting(true)
     try {
+      // Idempotency key: ties this reward to one player + one challenge + one amount.
+      // A double-tap of the same button for the same challenge reuses the key →
+      // apply_reward inserts only ONE transaction row.
+      const challengeId = currentChallenge?.id ?? 'manual'
+      const idempotencyKey = `${player.id}-${challengeId}-${amount}`
+
       const res = await fetch('/api/players', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: player.name, moneyChange: amount, avatar_url: player.avatar_url }),
+        body: JSON.stringify({
+          player_id: player.id,
+          amount,
+          reason: String(challengeId),
+          idempotency_key: idempotencyKey,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       markCompleted()
+      // data.money is the authoritative total returned by apply_reward — never client-computed
       setMoney(data.money)
+      // Keep localStorage in sync so it isn't stale on next mount
+      localStorage.setItem('casino_player', JSON.stringify({ ...player, money: data.money }))
       const formatted = amount >= 0 ? `+$${amount}` : `-$${Math.abs(amount)}`
       toast.success(`${formatted} · Total $${data.money}`, {
         icon: amount > 0 ? '🤑' : '💸',
@@ -92,8 +132,8 @@ export default function GamePage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="text-xs uppercase tracking-widest" style={{ color: 'rgba(212,175,55,0.45)' }}>🏦 WWB</span>
                   <span className="font-black tabular-nums text-base leading-tight"
-                    style={{ color: money < 0 ? '#f87171' : '#d4af37', textShadow: money >= 0 ? '0 0 10px rgba(212,175,55,0.4)' : 'none' }}>
-                    ${money.toLocaleString()}
+                    style={{ color: (money ?? 0) < 0 ? '#f87171' : '#d4af37', textShadow: (money ?? 0) >= 0 ? '0 0 10px rgba(212,175,55,0.4)' : 'none' }}>
+                    {money === null ? '—' : `$${money.toLocaleString()}`}
                   </span>
                 </div>
               </div>

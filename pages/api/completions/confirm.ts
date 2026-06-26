@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import type { Player } from '@/lib/types'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -31,11 +30,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(409).json({ error: 'Completion already resolved' })
   }
 
-  // Award money via the existing atomic RPC (same one used by /api/players)
-  const { data: player, error: rpcErr } = await supabaseAdmin.rpc('upsert_player_money', {
-    p_name: completion.player_name,
-    p_money_delta: rewardAmount,
-    p_avatar_url: completion.avatar_url ?? null,
+  // Resolve player UUID from name (completions table stores name, not id)
+  const { data: playerRow, error: playerErr } = await supabaseAdmin
+    .from('players')
+    .select('id')
+    .ilike('name', completion.player_name)
+    .single()
+
+  if (playerErr || !playerRow) {
+    return res.status(404).json({ error: `Player not found: ${completion.player_name}` })
+  }
+
+  // Append-only ledger write via apply_reward.
+  // Idempotency key ties the reward to this exact completion UUID — a dealer
+  // double-tapping confirm inserts only ONE transaction row.
+  const idempotencyKey = `${playerRow.id}-${completion.id}`
+  const { data: newTotal, error: rpcErr } = await supabaseAdmin.rpc('apply_reward', {
+    p_player_id: playerRow.id,
+    p_amount: rewardAmount,
+    p_reason: completion.id,          // completion UUID — stable, auditable
+    p_idempotency_key: idempotencyKey,
   })
 
   if (rpcErr) return res.status(500).json({ error: rpcErr.message })
@@ -48,6 +62,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (updateErr) return res.status(500).json({ error: updateErr.message })
 
-  const updatedPlayer = Array.isArray(player) ? player[0] : player
-  return res.status(200).json({ player: updatedPlayer as Player, reward: rewardAmount })
+  return res.status(200).json({ money: newTotal as number, reward: rewardAmount })
 }

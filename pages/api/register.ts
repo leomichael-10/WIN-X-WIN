@@ -19,12 +19,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'username must be 30 characters or fewer' })
   }
 
-  // Insert — intentionally NOT upsert so existing players can't be overwritten
+  // Insert — intentionally NOT upsert so existing players can't be overwritten.
+  // Start with money: 0; the opening balance is seeded via apply_reward below
+  // so it appears as the first transaction row (auditable, idempotent on retry).
   const { data, error } = await supabaseAdmin
     .from('players')
     .insert({
       name: trimmedName,
-      money: 1500,
+      money: 0,
       avatar_url: avatar_url ?? null,
     })
     .select()
@@ -38,5 +40,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: error.message })
   }
 
-  return res.status(201).json(data as Player)
+  // Seed the opening balance as the first ledger transaction.
+  // Idempotency key is stable: retrying registration is blocked by the unique
+  // name constraint above, so this RPC will only ever run once per player.
+  const { data: newTotal, error: rewardErr } = await supabaseAdmin.rpc('apply_reward', {
+    p_player_id: data.id,
+    p_amount: 1500,
+    p_reason: 'registration',
+    p_idempotency_key: `${data.id}-registration`,
+  })
+
+  if (rewardErr) return res.status(500).json({ error: rewardErr.message })
+
+  return res.status(201).json({ ...data, money: newTotal } as Player)
 }

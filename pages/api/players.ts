@@ -14,28 +14,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'POST') {
-    const { name, avatar_url } = req.body
+    const { player_id, amount, reason, idempotency_key } = req.body
 
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'name is required' })
+    if (!player_id || typeof player_id !== 'string') {
+      return res.status(400).json({ error: 'player_id is required' })
+    }
+    const delta = Number(amount)
+    if (!Number.isFinite(delta)) {
+      return res.status(400).json({ error: 'amount must be a finite number' })
+    }
+    if (!reason || typeof reason !== 'string') {
+      return res.status(400).json({ error: 'reason is required' })
+    }
+    if (!idempotency_key || typeof idempotency_key !== 'string') {
+      return res.status(400).json({ error: 'idempotency_key is required' })
     }
 
-    const moneyChange = Number(req.body.moneyChange)
-    if (!Number.isFinite(moneyChange)) {
-      return res.status(400).json({ error: 'moneyChange must be a finite number' })
-    }
-
-    // Atomic upsert via Postgres RPC — avoids race condition
-    const { data, error } = await supabaseAdmin.rpc('upsert_player_money', {
-      p_name: name.trim(),
-      p_money_delta: moneyChange,
-      p_avatar_url: avatar_url ?? null,
+    // Append-only ledger write — idempotency_key makes double-taps safe
+    const { data: newTotal, error } = await supabaseAdmin.rpc('apply_reward', {
+      p_player_id: player_id,
+      p_amount: delta,
+      p_reason: reason,
+      p_idempotency_key: idempotency_key,
     })
 
     if (error) return res.status(500).json({ error: error.message })
-    // rpc returns array; take first row
-    const player = Array.isArray(data) ? data[0] : data
-    return res.status(200).json(player as Player)
+    return res.status(200).json({ money: newTotal as number })
   }
 
   res.setHeader('Allow', ['GET', 'POST'])
