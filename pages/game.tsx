@@ -25,14 +25,11 @@ export default function GamePage() {
     try {
       const p: Player = JSON.parse(stored)
       setPlayer(p)
-      setMoney(p.money) // temporary display while we fetch fresh value
-      // Hydrate money from Supabase — localStorage may be stale after mutations
-      fetch('/api/players')
+      setMoney(p.money) // fast paint from cache while DB read is in flight
+      // Overwrite with the authoritative ledger total — DB always wins
+      fetch(`/api/players?player_id=${encodeURIComponent(p.id)}`)
         .then(r => r.json())
-        .then((players: Player[]) => {
-          const fresh = players.find(pl => pl.id === p.id)
-          if (fresh) setMoney(fresh.money)
-        })
+        .then(({ money }: { money: number }) => { if (typeof money === 'number') setMoney(money) })
         .catch(() => {/* keep localStorage value on network failure */})
     } catch { router.replace('/') }
   }, [router])
@@ -40,13 +37,12 @@ export default function GamePage() {
   // When dealer confirms, re-fetch from DB to get the authoritative post-confirmation total
   useEffect(() => {
     if (dealerStatus === 'confirmed' && confirmedReward > 0) {
-      fetch('/api/players')
+      fetch(`/api/players?player_id=${encodeURIComponent(player?.id ?? '')}`)
         .then(r => r.json())
-        .then((players: Player[]) => {
-          const fresh = players.find(pl => pl.id === player?.id)
-          if (fresh) {
-            setMoney(fresh.money)
-            localStorage.setItem('casino_player', JSON.stringify({ ...player, money: fresh.money }))
+        .then(({ money }: { money: number }) => {
+          if (typeof money === 'number') {
+            setMoney(money)
+            localStorage.setItem('casino_player', JSON.stringify({ ...player, money }))
           }
         })
         .catch(() => {
@@ -70,7 +66,9 @@ export default function GamePage() {
       // A double-tap of the same button for the same challenge reuses the key →
       // apply_reward inserts only ONE transaction row.
       const challengeId = currentChallenge?.id ?? 'manual'
-      const idempotencyKey = `${player.id}-${challengeId}-${amount}`
+      // Key = player + challenge only (no amount). One ledger row per player
+      // per challenge regardless of reward size; amount is in the row itself.
+      const idempotencyKey = `${player.id}-${challengeId}`
 
       const res = await fetch('/api/players', {
         method: 'POST',

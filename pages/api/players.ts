@@ -4,6 +4,20 @@ import type { Player } from '@/lib/types'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
+    const { player_id } = req.query
+
+    // Targeted single-player read: returns { money } via get_total RPC.
+    // Used by game.tsx on mount and after dealer confirm — avoids fetching
+    // all 85 players just to read one balance.
+    if (player_id && typeof player_id === 'string') {
+      const { data: total, error } = await supabaseAdmin.rpc('get_total', {
+        p_player_id: player_id,
+      })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ money: total as number })
+    }
+
+    // No player_id — return full list sorted by money (used by leaderboard).
     const { data, error } = await supabaseAdmin
       .from('players')
       .select('*')
