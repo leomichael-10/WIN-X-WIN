@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import Head from 'next/head'
-import Image from 'next/image'
 import toast, { Toaster } from 'react-hot-toast'
 import type { Completion } from '@/lib/types'
 
@@ -142,7 +141,8 @@ export default function DealerPage() {
                     <div className="relative rounded-full overflow-hidden shrink-0"
                       style={{ width: 48, height: 48, border: '2px solid #d4af37', background: '#111' }}>
                       {c.avatar_url ? (
-                        <Image src={c.avatar_url} alt={c.player_name} fill className="object-cover" unoptimized />
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.avatar_url} alt={c.player_name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center font-black text-xl" style={{ color: '#d4af37' }}>
                           {(c.player_name?.charAt(0) ?? '?').toUpperCase()}

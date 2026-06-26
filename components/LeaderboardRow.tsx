@@ -1,4 +1,3 @@
-import Image from 'next/image'
 import type { Player } from '@/lib/types'
 
 const RANK_LABEL: Record<number, { symbol: string; color: string }> = {
@@ -57,7 +56,8 @@ export function LeaderboardRow({ player, rank }: LeaderboardRowProps) {
         }}
       >
         {player.avatar_url ? (
-          <Image src={player.avatar_url} alt={player.name} fill className="object-cover" unoptimized />
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={player.avatar_url} alt={player.name} className="w-full h-full object-cover" />
         ) : (
           <div
             className="w-full h-full flex items-center justify-center font-black"
